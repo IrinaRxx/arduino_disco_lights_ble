@@ -21,7 +21,7 @@
 //
 //  -Mark Kriegsman, December 2014
 //
-// Adapted to the 'VisualizationScheduler' environment by Irina Riegert, October 2015 
+// Adapted to the 'VisualizationScheduler' environment by Irina Riegert, November 2015 
 
 #if !defined(__EFFECT_TWINKLING_HOLIDAY_LIGHTS_H__)
 #define __EFFECT_TWINKLING_HOLIDAY_LIGHTS_H__
@@ -198,5 +198,5 @@ protected:
 
 };
 
-#endif // #if !defined(__EFFECT_TWINKLING_HOLIDAY_LIGHTS_H__) //
+#endif 
 

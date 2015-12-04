@@ -1,4 +1,5 @@
 /*********************************************************************
+
 This is an example for music controlled Arduino NEOPIXEL strip using
 "Disco Lights BLE" Android application.
 
@@ -43,8 +44,6 @@ Steps:
        (https://learn.adafruit.com/getting-started-with-the-nrf8001-bluefruit-le-breakout/hooking-everything-up).
 
     c. NEOPIXEL controller is connected to pin 6.
-
-5.) DONE
 
 MIT license, check LICENSE for more information
 All text above must be included in any redistribution
@@ -320,5 +319,4 @@ void loop()
   
   NEOPIXEL_STRIP_ARDUINO_LOOP();
 }
-
 

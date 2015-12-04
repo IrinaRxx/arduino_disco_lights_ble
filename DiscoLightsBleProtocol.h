@@ -736,11 +736,10 @@ public: // Received Streaming Data //
 
     if (mQ8p8FsInHz != 0)
     {
-      bpm = mQ8p8BeatPeriodInSamples;
+      bpm  = mQ8p8BeatPeriodInSamples;
       bpm *= 100;
       bpm /= mQ8p8FsInHz;
-      //
-      bpm = 6000 / bpm;
+      bpm  = 6000 / bpm;
       bpm &= 0xff;
     }
 
@@ -771,5 +770,6 @@ public: // Received Streaming Data //
   unsigned char  mFreqBandIntensity[NumofFreqBands];
 };
 
-#endif // #if !defined( __DISCO_LIGHT_BLE_PROTOCOL_H__ ) //
+#endif
+
 

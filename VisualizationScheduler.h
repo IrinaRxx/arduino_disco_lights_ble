@@ -1,6 +1,6 @@
 /********************************************************************************
 This is the VisualizationScheduler for FastLed 3.+ library.
-It manages effects in time or space. 
+It manages effects in time or space.
 
 Copyright (c) 2015 Irina Riegert
 
@@ -571,6 +571,6 @@ int VisualizationEffectSchedule<Configuration>::mTimeQueue[Configuration::NumofE
 #define NEOPIXEL_STRIP_EFFECT_SET_ENABLE(effect_ptr, flag)                       {(effect_ptr)->mEnabled=flag;}
 #define NEOPIXEL_STRIP_EFFECT_SET_PERIOD_MS(effect_ptr, period_ms)               {(effect_ptr)->mUpdatePeriodInMs=period_ms;}
 
-#endif // #if !defined(__LED_VISUALIZATION_SCHEDULER_H__)
+#endif 
 
 

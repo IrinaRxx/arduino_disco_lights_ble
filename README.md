@@ -1,1 +1,1 @@
-arduino_disco_lights_ble
+Disco Light BLE and Arduino 

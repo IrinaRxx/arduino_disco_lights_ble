@@ -5,7 +5,7 @@
 //
 // Mark Kriegsman, July 2015
 //
-// Adapted to the 'VisualizationScheduler' environment by Irina Riegert, October 2015 
+// Adapted to the 'VisualizationScheduler' environment by Irina Riegert, November 2015 
 
 #if FASTLED_VERSION < 3001000
 #error "Requires FastLED 3.1 or later; check github for latest code."
