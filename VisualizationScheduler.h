@@ -1,5 +1,5 @@
 /********************************************************************************
-This is the VisualizationScheduler for FastLed 3.+ library.
+This is the VisualizationScheduler for FastLED 3.+ library.
 It manages effects in time or space.
 
 Copyright (c) 2015 Irina Riegert
