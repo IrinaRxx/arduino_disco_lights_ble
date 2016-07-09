@@ -2,7 +2,7 @@
 This is the VisualizationScheduler for FastLED 3.+ library.
 It manages effects in time or space.
 
-Copyright (c) 2015 Irina Riegert
+Copyright (c) 2015-2016 Irina Riegert
 
 MIT license, check LICENSE for more information
 All text above must be included in any redistribution.
@@ -392,7 +392,7 @@ struct VisualizationEffectSchedule
         mTimeQueue[ii] = mList[ii]->mUpdatePeriodInMs;
         do_update      = true;
         
-        mList[ii]->Processing(delta);
+        mList[ii]->Processing(mList[ii]->mUpdatePeriodInMs);
       }
     }
 

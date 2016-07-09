@@ -7,6 +7,9 @@
 //
 // Adapted to the 'VisualizationScheduler' environment by Irina Riegert, November 2015 
 
+#if !defined(__EFFECT_DISCO_STROBE_LIGHTS_H__)
+#define __EFFECT_DISCO_STROBE_LIGHTS_H__
+
 #if FASTLED_VERSION < 3001000
 #error "Requires FastLED 3.1 or later; check github for latest code."
 #endif
@@ -32,6 +35,11 @@ public:
   virtual ~EffectDiscoStrobeLights() {}
   EffectDiscoStrobeLights() {}
   
+  const char* Name() const 
+  {
+    return "DISCOSTROBE";
+  }
+
   void Init()
   {
     NEOPIXEL_STRIP_EFFECT_SET_LEDS_POSITION(this,StartLedIndex, NumofLeds);
@@ -53,7 +61,7 @@ public:
     discostrobe();
   }
 
-  void SetBeatBpm(uint8_t bpm )
+  void UpdateBpm(const unsigned char bpm)
   {
     if( 40<=bpm && bpm<=200)
     {
@@ -229,4 +237,7 @@ protected:
     }
   }
 };
+
+# endif
+
 

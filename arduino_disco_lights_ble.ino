@@ -18,12 +18,14 @@ It utilizes
 
      a. Twinkling 'holiday' lights
      b. DiscoStrobe
+     
+ 5.) Added sound ripple effect.
 
- 5.) VisualizationScheduler for managing different effects in time or space.
+ 6.) VisualizationScheduler for managing different effects in time or space.
 
- 6.) "Disco Lights BLE" Application Communication Protocol.
+ 7.) "Disco Lights BLE" Application Communication Protocol.
 
- 7.) "Disco Lights BLE" Android application which provides beat and other information 
+ 8.) "Disco Lights BLE" Android application which provides beat and other information 
      for music controlled visualization.
 
 Steps:
@@ -61,14 +63,25 @@ All text above must be included in any redistribution
 #define ADAFRUITBLE_RST 9
 
 Adafruit_BLE_UART BTLEserial = Adafruit_BLE_UART(ADAFRUITBLE_REQ, ADAFRUITBLE_RDY, ADAFRUITBLE_RST);
-aci_evt_opcode_t  LastStatus = ACI_EVT_DISCONNECTED;
+
+///// "DISCO LIGHTS BLE" COMMUNICATION PROTOCOL
+
+#include "DiscoLightsBleProtocol.h"
+
+struct Notification
+{
+  void onGeneralInfo();
+  void onRhythmInfo();
+};
+
+DiscoLightsBleProtocolI2<Notification> ProtocolLayer;
 
 ///// FASTLED LIB AND VISUALIZATION SCHEDULER WITH EFFECTS LIB
 
 #include <FastLED.h>
 #include "VisualizationScheduler.h"
 #include "EffectTwinklingHolidayLights.h"
-#include "EffectDiscoStrobeLights.h"
+#include "EffectSoundRippleLights.h"
  
 struct NeopixelHardwareConfiguration
 {
@@ -92,107 +105,146 @@ NEOPIXEL_STRIP_DEFINE_VISUALIZATION_IFACE(NeopixelHardwareConfiguration);
 
 // ADDING EFFECTS ON THE STRIP //
 
-EffectTwinklingHolidayLights < 0/*StartIndex*/, NeopixelHardwareConfiguration::NumofLeds/*Length*/ > gHolidayLights;
-EffectDiscoStrobeLights      < 0/*StartIndex*/, NeopixelHardwareConfiguration::NumofLeds/*Length*/ > gDiscoStrobeLights;
+EffectTwinklingHolidayLights < 0, NeopixelHardwareConfiguration::NumofLeds > gHolidayLights;
+EffectSoundRippleLights      < 0, NeopixelHardwareConfiguration::NumofLeds > gSoundRippleLights;
 
 void EffectsConfiguration::addEffects()
 {
   NEOPIXEL_STRIP_EFFECT_INSERT( &gHolidayLights,     0 );
-  NEOPIXEL_STRIP_EFFECT_INSERT( &gDiscoStrobeLights, 1 );
+  NEOPIXEL_STRIP_EFFECT_INSERT( &gSoundRippleLights, 1 );
 }
 
-///// "DISCO LIGHTS BLE" COMMUNICATION PROTOCOL
+///// STATES AND STATUSES
 
-#include "DiscoLightsBleProtocol.h"
-
-DiscoLightsBleProtocol ProtocolLayer;
-bool                   BeatState;
-uint8_t                BeatPerMin;
-unsigned short         TotalIntensityEma;
+bool      RhythmState;
+uint8_t   IntensityRaw;
+uint16_t  IntensityEma;
+int       CountInMs;
 
 inline
-void updateTotalIntensityEma ( )
+void CalculateIntensityEma()
 {
-  enum { EmaAlpha   = 127          };
+  enum { EmaAlpha   = 64           };
   enum { EmaAlphaM1 = 255-EmaAlpha };
-
-  TotalIntensityEma = (TotalIntensityEma>>8) * (unsigned short)EmaAlphaM1 
-                    + (unsigned short)ProtocolLayer.mTotalLogIntensity * (unsigned short)EmaAlpha;
+  
+  IntensityRaw = ProtocolLayer.PopIntensityC1();
+  IntensityEma = (IntensityEma>>8) * (uint16_t)EmaAlphaM1 
+               + (uint16_t)IntensityRaw * (uint16_t)EmaAlpha;
 }
 
 inline
-unsigned char GetTotalIntensityEma()
+bool UpdateIntensityData ( )
 {
-  uint8_t intesity = TotalIntensityEma>>8;
+  int  ms = millis();
+  int  de = CountInMs - ms;
+  bool do_update = false;
 
-  if(intesity<32)
-    intesity=32;
+  if(ProtocolLayer.TickInMs()!=0 )
+  {
+    if(de<0)
+    {
+      do_update = true;
+      CountInMs = ms;
+     
+      CalculateIntensityEma ( );
+    }
+    else
+    {
+      while(de>=ProtocolLayer.TickInMs())
+      {
+        de       -= ProtocolLayer.TickInMs();
+        do_update = true;
   
-  return intesity;
+        CalculateIntensityEma ( );
+      }
+      
+      CountInMs = ms - de;
+    }
+  }
+  return do_update;
+}
+
+inline
+unsigned char GetIntensityEma()
+{
+  uint8_t intensity = IntensityEma>>8;
+
+  return intensity;
 }
 
 inline
 void ResetLocalVars ( )
 {
-  BeatPerMin          = 0;
-  TotalIntensityEma   = 0;
-
-  NEOPIXEL_STRIP_GLOBAL_BRIGHTNESS(120);
+  IntensityEma = 0;
+  IntensityRaw = 0;
+  CountInMs    = 0;
 }
 
-/// ARDUINO SETUP
+/// ARDUINO SETUP ///
+
+inline
+void DisconnectProtocol()
+{
+  ProtocolLayer.Init();
+  ResetLocalVars();
+
+  NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights,     true);
+  NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gSoundRippleLights, false);
+
+  NEOPIXEL_STRIP_GLOBAL_BRIGHTNESS(255);
+}
 
 void setup(void)
 { 
-  // DEBUGGING
+  // DEBUGGING //
   
   Serial.begin(115200);
   while(!Serial); // Leonardo/Micro should wait for serial init
 
-  // BLE UART
+  Serial.write("Arduino BLE started\n");
+
+  // BLE UART //
   
   BTLEserial.begin();
 
-  // VISUALIZATION SCHEDULER & PROTOCOL LAYER
+  // VISUALIZATION SCHEDULER & PROTOCOL LAYER //
   
   NEOPIXEL_STRIP_ARDUINO_SETUP();
   
-  // switching to manual mode: controlling effects using music recovered context ...
+  // switching to manual mode: controlling effects using music recovered context ... //
   
   NEOPIXEL_STRIP_MANUAL_MODE(true);
   
-  BeatState = false;
-  ResetLocalVars();
-  NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights, true);
+  DisconnectProtocol();
 }
 
-/// ARDUINO LOOP
+/// ARDUINO LOOP ///
 
 inline 
 void UpdateBleUartState()
 {
+  static aci_evt_opcode_t last_status = ACI_EVT_DISCONNECTED;
+  
   BTLEserial.pollACI();
 
   aci_evt_opcode_t status = BTLEserial.getState();
-  if (status != LastStatus)
+  if (status != last_status)
   { 
     if( status == ACI_EVT_DEVICE_STARTED || status == ACI_EVT_DISCONNECTED)
     {
-	  // reset application protocol instance //
-	  ProtocolLayer.Init();
-	  ResetLocalVars ( );
+	    DisconnectProtocol();
+
+      Serial.write('DISCONNECTED\n');
     }
-    LastStatus = status;
+    
+    last_status = status;
   }
 
   if (status == ACI_EVT_CONNECTED) 
   {
-    if(BTLEserial.available())
+    while (BTLEserial.available()) 
     {
-      while (BTLEserial.available()) 
-	  {
-        ProtocolLayer.FrameDecode(BTLEserial.read());
-      }
+      ProtocolLayer.FrameDecode(BTLEserial.read());
     }
   }
 }
@@ -208,7 +260,7 @@ void ProtocolLayerSendsDevNotif( uint8_t effect_index )
 }
 
 inline
-void ProcessingCommands()
+void UpdateProtocol()
 {
   bool stop_read_cmd = false;
 
@@ -222,17 +274,17 @@ void ProcessingCommands()
     case ProtoID_Unknown:
       stop_read_cmd = true;
       break;
-    case ProtoID_DeviceCapability:
-      if(ProtocolLayer.FillBufferWithDeviceCapabilityFrame(eLedTypeStrip, 0/*high byte*/, NeopixelHardwareConfiguration::NumofLeds/*low byte*/, 2, eFeatureSupportEffectInfo)==true )
+    case ProtoID_DeviceCapabilityI2:
+      if( ProtocolLayer.FillBufferWithDeviceCapabilityI2Frame( eLedTypeStrip, 0/*high byte*/, NeopixelHardwareConfiguration::NumofLeds/*low byte*/, 2, eFeatureSupportEffectInfo )==true )
       {
         uint8_t length = ProtocolLayer.Encode();
         BTLEserial.write(ProtocolLayer.Buffer(),length+1);
       }
       break;
     case ProtoID_EffectInfo:
-      if(param==1 ) 
+      if(param==1) 
       {
-      	if(ProtocolLayer.FillBufferWithEffectInfo(param, 0, "TWINLINGHLDY" )==true)
+      	if( ProtocolLayer.FillBufferWithEffectInfo( param, 0, gHolidayLights.Name() )==true )
       	{
       	  uint8_t length = ProtocolLayer.Encode();
       	  BTLEserial.write(ProtocolLayer.Buffer(),length+1);
@@ -241,7 +293,7 @@ void ProcessingCommands()
       else
       if(param==2)
       {
-      	if(ProtocolLayer.FillBufferWithEffectInfo(param, 0, "DISCOSTROBE" )==true)
+      	if( ProtocolLayer.FillBufferWithEffectInfo( param, 0, gSoundRippleLights.Name() )==true )
       	{
       	  uint8_t length = ProtocolLayer.Encode();
       	  BTLEserial.write(ProtocolLayer.Buffer(),length+1);
@@ -249,74 +301,92 @@ void ProcessingCommands()
       }
       break;
     case ProtoID_GetDevStatus:
-	    ProtocolLayerSendsDevNotif(BeatState==true?2:1);
+	    ProtocolLayerSendsDevNotif(RhythmState==true?2:1);
       break;
     }
   }  
 }
 
+void UpdateSchedulerInManualMode()
+{
+  if( RhythmState==false )
+  {
+    if( ProtocolLayer.IsBpmValid()==true && GetIntensityEma() > 60 )
+    {
+      RhythmState = true;
+      
+      NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights, false);
+    
+      NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gSoundRippleLights, true);
+      gSoundRippleLights.UpdateFs(ProtocolLayer.TickInMs());
+
+      NEOPIXEL_STRIP_GLOBAL_BRIGHTNESS(255);
+
+      ProtocolLayerSendsDevNotif(2);
+    }
+  }
+  else
+  if ( RhythmState==true )
+  {
+    if ( ProtocolLayer.IsRhythmTracked()==false || GetIntensityEma() < 30 )
+    {
+      RhythmState = false;
+
+      NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights,     true);
+      NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gSoundRippleLights, false);
+    
+      if(ProtocolLayer.IsReady()==true)
+      {
+        // It connected to "Disco Lights BLE". //
+        
+  	    ProtocolLayerSendsDevNotif(1);
+      }
+    }
+  }
+}
+
+void Notification::onGeneralInfo()
+{
+  // updating effects with emotion information //
+  gSoundRippleLights.UpdateEmotion(ProtocolLayer.BasicEmotion());
+}
+
+void Notification::onRhythmInfo()
+{
+  // updating effects with rhythm information //  
+  gSoundRippleLights.UpdateRhythm( ProtocolLayer.GetRhythmCursorInSamples(), ProtocolLayer.GetRhythmEndInSamples());
+}
+
 void loop()
 {
-  // BLE HW AND PROTOCOL LAYER UPDATE
+  // BLE HW AND PROTOCOL LAYER UPDATE //
   
   UpdateBleUartState();
 
-  ProcessingCommands();
+  UpdateProtocol();
 
-  // VISUALIZATION SCHEDULER IN MANUAL MODE
+  // VISUALIZATION SCHEDULER IN MANUAL MODE //
   
-  if( BeatState==false 
-   && ProtocolLayer.mQ8p8BeatPeriodInSamples!=0 
-   && ProtocolLayer.IsInputSignalPresent()==true 
-   && ProtocolLayer.IsBeatTracked()==true )
+  UpdateSchedulerInManualMode();
+
+  if(ProtocolLayer.IsReady()==true)
   {
-    NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights,     false);
-    NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gDiscoStrobeLights, true);
-
-    BeatState = true;
-
-    ProtocolLayerSendsDevNotif(2);
-  }
-  else
-  if ( BeatState==true 
-   && ( ProtocolLayer.mQ8p8BeatPeriodInSamples==0 || ProtocolLayer.IsInputSignalPresent()==false ) )
-  {
-    NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gHolidayLights,     true);
-    NEOPIXEL_STRIP_EFFECT_SET_ENABLE(&gDiscoStrobeLights, false);    
-
-    BeatState = false;
-
-    if(ProtocolLayer.mQ8p8FsInHz!=0)
+    if(UpdateIntensityData()==true)
     {
-      // connected to "Disco Lights BLE"
-      
-	    ProtocolLayerSendsDevNotif(1);
-    }
-  }
-
-  if(ProtocolLayer.mQ8p8FsInHz!=0)
-  {
-    // connected to "Disco Lights BLE"
-    
-    updateTotalIntensityEma ( );
-  
-    if(BeatState==true)
-    {
-      // calculating BPM and updating appropriate effect
-      
-      uint8_t bpm = ProtocolLayer.GetBpm();
-  
-      if( BeatPerMin!=bpm)
+      // updating effects with intensity information //
+      if(IntensityRaw > 30)
       {
-        BeatPerMin=(uint8_t)bpm;
-        
-        gDiscoStrobeLights.SetBeatBpm(BeatPerMin);
-      }
-    } 
+        gSoundRippleLights.UpdateIntensity(IntensityRaw);
 
-    NEOPIXEL_STRIP_GLOBAL_BRIGHTNESS(GetTotalIntensityEma());
+        if(RhythmState == false)
+        {
+          NEOPIXEL_STRIP_GLOBAL_BRIGHTNESS(IntensityRaw);       
+        }
+      }
+    }
   }
   
   NEOPIXEL_STRIP_ARDUINO_LOOP();
 }
+
 

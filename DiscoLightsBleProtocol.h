@@ -3,7 +3,7 @@
 
   "Disco Lights BLE" Communication Protocol
 
-  Copyright (c) 2015 Irina Riegert
+  Copyright (c) 2015-2016 Irina Riegert
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -38,18 +38,22 @@ extern "C" {
 # endif
 
   typedef enum tag_of_eProtocolID
-  { ProtoID_Unknown          = 0
-  , ProtoID_GeneralInfo      = 1
-  , ProtoID_BeatChannel      = 2
-  , ProtoID_FiveFreqBands    = 3
-  // 4-16: Preallocated for future use    //
-  // 17-199: Reserved                     //
-  , ProtoID_DeviceCapability = 200
-  , ProtoID_EffectInfo       = 201
-  , ProtoID_GetDevStatus     = 202
-  // 203-215: Preallocated for future use //
-  // 216-254: Reserved                    //
-  , ProtoID_DevNotification  = 255
+  { ProtoID_Unknown            = 0
+  , ProtoID_GeneralInfo        = 1
+  , ProtoID_BeatChannel        = 2
+  , ProtoID_FiveFreqBands      = 3
+  , ProtoID_GeneralInfoI2      = 4
+  , ProtoID_RhythmChannel      = 5
+  // 5-16: Allocated for future use //
+  // 17-199: Reserved //
+  , ProtoID_DeviceCapability   = 200
+  , ProtoID_EffectInfo         = 201
+  , ProtoID_GetDevStatus       = 202
+  // 203: Allocated for future use //
+  , ProtoID_DeviceCapabilityI2 = 204
+  // 205-215: Allocated for future use //
+  // 216-254: Reserved //
+  , ProtoID_DevNotification    = 255
   } eProtocolID;
 
   typedef enum tag_of_eExtFrameLength
@@ -58,6 +62,12 @@ extern "C" {
   , eExtFrameBufferSzMinimumInBytes = 20
   , eExtFrameBufferSzMaximumInBytes = 40
   } eExtFrameLength;
+
+  typedef enum tag_of_eUQ88BigEndianFormat
+  { eUQ88IntegerPartIndex    = 0
+  , eUQ88FractionalPartIndex = 1
+  , eUQ88NumofBytes          = 2
+  } eUQ88BigEndianFormat;
 
   # if defined(WIN32) && (WIN32==1)
   #  pragma pack(push)
@@ -137,6 +147,72 @@ extern "C" {
   # endif
     CmuExtPacket5FreqBands_t
   , *PCMUEXTPKT5FREQBANDS;
+
+  // DEFINITION: struct CmuExtPacketGeneralInfoI2_t
+
+  typedef enum tag_of_eGeneralInfoI2Bitmap
+  { eGeneralInfoI2InputSignalPresenceBit = 0x80
+  , eGeneralInfoI2VoiceDetectedBit       = 0x40
+  , eGeneralInfoI2ReservedMask           = 0x30
+  , eGeneralInfoI2EmotionMask            = 0x0f
+  } eAdditionalInfoBitmap;
+ 
+  typedef enum tag_of_eGeneralInfoI2BasicEmotions
+  { eGeneralInfoI2BasicEmotionNeutral    = 0x0
+  , eGeneralInfoI2BasicEmotionHappiness  = 0x1
+  , eGeneralInfoI2BasicEmotionSadness    = 0x2
+  , eGeneralInfoI2BasicEmotionAnger      = 0x3
+  } tag_of_eGeneralInfoI2BasicEmotions;
+
+  typedef enum tag_of_eGeneralInfoI2Intensity
+  {
+    eGeneralInfoI2IntensityEntries = 6
+
+  } eGeneralInfoI2Intensity;
+
+  typedef struct tag_of_CmuExtPacketGeneralInfoI2_t
+  {
+    CmuExtPacketHeader_t mHeader;
+    unsigned char        mBitmap;
+    unsigned char        mIntensityC1[eGeneralInfoI2IntensityEntries];
+  }
+  # if !defined(WIN32) || (WIN32==0)
+  __attribute__((aligned(1), packed))
+  # endif
+    CmuExtPacketGeneralInfoI2_t
+  ,*PCMUEXTPKTGENERALI2;
+
+  // DEFINITION: struct CmuExtPacketRhythmInfo_t
+
+  typedef enum tag_of_eRhythmInfoBitmap
+  {
+    eRhythmInfoTrackingBit = 0x80
+  , eRhythmInfoReserved    = 0x7f
+  } eRhythmInfoBitmap;
+
+  typedef enum tag_of_eRhythmInfoParamIndex
+  {
+    eRhythmInfoIndexCursor = 0
+  , eRhythmInfoIndexEnd    = 1
+  , eRhythmInfoIndexOnTime = 2
+  , eRhythmInfoNumofIndices
+  } eRhythmInfoParamIndex;
+
+  typedef struct tag_of_CmuExtPacketRhythmInfo_t
+  {
+    CmuExtPacketHeader_t mHeader;
+    unsigned char        mBitmap;                                        // bit 7  : RhythmTrackingBit                 //
+                                                                         //                                            //
+    unsigned char        mBeatPeriodInSamples[eUQ88NumofBytes];          // rhythm period                              //
+                                                                         //        : bits [0,7] integer part of UQ7.8  //
+                                                                         // byte 1 : bits [0,7] fraction part of UQ7.8 //
+    unsigned char        mBeatStatusInSamples[eRhythmInfoNumofIndices];  // UQ8.0 x 3                                  //
+  }
+  # if !defined(WIN32) || (WIN32==0)
+  __attribute__((aligned(1), packed))
+  # endif
+    CmuExtPacketRhythmInfo_t
+  ,*PCMUEXTPKTRHYTHMINFO;
 
   // DEFINITION: struct CmuExtPacketReqDevCap_t
 
@@ -237,6 +313,22 @@ extern "C" {
     CmuExtPacketGetDevStatus_t
   , *PCMUEXTPKTGETDEVSTATUS;
 
+  // DEFINITION: struct CmuExtPacketReqDevCapI2_t
+
+  typedef struct tag_of_CmuExtPacketReqDevCapI2_t
+  {
+    CmuExtPacketHeader_t mHeader;
+    unsigned char        mFsDspInHz[eUQ88NumofBytes]; // byte 0       : bits [0,7] integer part of UQ8.8  [0,255] //
+                                                      // byte 1       : bits [0,7] fraction part of UQ8.8 [0,255] //
+    unsigned char        mFsTxtInHz[eUQ88NumofBytes]; // byte 0       : bits [0,7] integer part of UQ8.8  [0,255] //
+                                                      // byte 1       : bits [0,7] fraction part of UQ8.8 [0,255] //
+  }
+  # if !defined(WIN32) || (WIN32==0)
+  __attribute__((aligned(1), packed))
+  # endif
+    CmuExtPacketReqDevCapI2_t
+  ,*PCMUEXTPKTREQDEVCAPI2;
+
   // DEFINITION: struct CmuExtPacketDevNotif_t
 
   typedef struct tag_of_CmuExtPacketDevNotif_t
@@ -259,9 +351,18 @@ extern "C" {
 }
 # endif
 
-// DEFINITION: class DiscoLightsBleProtocol
+// DEFINITION: template < struct Notification > class DiscoLightsBleProtocolI2
 
-class DiscoLightsBleProtocol
+// example of 'struct Notification'
+// 
+//struct Notification
+//{
+//  void onGeneralInfo() { /* TODO */ }
+//  void onRhythmInfo()  { /* TODO */ }
+//};
+
+template < class Notification >
+class DiscoLightsBleProtocolI2
 {
 private:
 
@@ -304,8 +405,8 @@ private:
         return 2;
       }
 
-      mRcvCobsCode          = rcv_byte - 1;
-      mRcvCobsState         = 1;
+      mRcvCobsCode = rcv_byte - 1;
+      mRcvCobsState = 1;
       mBuffer[mRcvCursor++] = 0;
 
       return 1;
@@ -337,7 +438,7 @@ private:
   void FrameDecodeInit()
   {
     mRcvFrmId = 0;
-    //
+   
     FrameDecodeReset();
     CommandQueueReset();
     DecodedDataReset();
@@ -369,7 +470,7 @@ private:
   inline
   void FrameDecodeShiftCobs()
   {
-    mRcvCursor   = 0;
+    mRcvCursor = 0;
     mRcvEopIndex = 0;
     mRcvSopIndex = 0;
   }
@@ -378,7 +479,7 @@ public:
 
   // --- API --- //
 
-  DiscoLightsBleProtocol()
+  DiscoLightsBleProtocolI2()
   {
     FrameDecodeInit();
   }
@@ -399,15 +500,15 @@ public:
   {
     return mBuffer;
   }
-  
+
   // --- Frame Encoding --- // 
 
-  unsigned char Encode_I(unsigned char *frm_buffer_ptr)
+  static unsigned char Encode_I(unsigned char *frm_buffer_ptr)
   {
     unsigned char frm_length = frm_buffer_ptr[0];
     unsigned char cursor_idx = 1;
-    unsigned char code_idx   = 0;
-    unsigned char code       = 1;
+    unsigned char code_idx = 0;
+    unsigned char code = 1;
 
     if (frm_length == 0 || frm_length > eExtFrameBufferSzMaximumInBytes)
       return 0;
@@ -437,46 +538,59 @@ public:
     return Encode_I(mBuffer);
   }
 
-  bool FillBufferWithDeviceCapabilityFrame
-  ( unsigned char device_type
-  , unsigned char rows
-  , unsigned char columns
-  , unsigned char numof_effects
-  , unsigned char feature_bitmap )
+  inline
+  bool FillBufferWithDeviceCapabilityI2Frame( unsigned char device_type
+                                            , unsigned char rows
+                                            , unsigned char columns
+                                            , unsigned char numof_effects
+                                            , unsigned char feature_bitmap )
   {
-    if ( eLedTypeUnknown == device_type || device_type > eNumofLedTypes || (rows==0 && eLedTypeMatrix==device_type) || columns==0 || numof_effects==0 )
+    if ( eLedTypeUnknown == device_type 
+      || device_type > eNumofLedTypes 
+      || ( rows == 0 && eLedTypeMatrix == device_type ) 
+      || columns == 0 
+      || numof_effects == 0 )
+    {
       return false;
+    }
 
-    mBuffer[0]  = sizeof(CmuExtPacketRspDevCap_t) + 1;
-    mBuffer[1]  = ProtoID_DeviceCapability;
-    mBuffer[2]  = mRcvFrmId;
-    mBuffer[3]  = device_type;
-    mBuffer[4]  = rows;
-    mBuffer[5]  = columns;
-    mBuffer[6]  = numof_effects;
-    mBuffer[7]  = feature_bitmap;
-    mBuffer[8]  = eCapabilityVersionNumber;
-    mBuffer[9]  = 0;
+    mBuffer[0] = sizeof(CmuExtPacketRspDevCap_t) + 1;
+    mBuffer[1] = ProtoID_DeviceCapabilityI2;
+    mBuffer[2] = mRcvFrmId;
+    mBuffer[3] = device_type;
+    mBuffer[4] = rows;
+    mBuffer[5] = columns;
+    mBuffer[6] = numof_effects;
+    mBuffer[7] = feature_bitmap;
+    mBuffer[8] = eCapabilityVersionNumber;
+    mBuffer[9] = 0;
 
     return true;
   }
 
-  bool FillBufferWithEffectInfo(unsigned char effect_index, unsigned char bitmap, const char* name_string_ptr )
+  inline
+  bool FillBufferWithEffectInfo( unsigned char effect_index
+                               , unsigned char bitmap
+                               , const char   *name_string_ptr)
   {
-    if (effect_index == 0 || name_string_ptr == NULL || name_string_ptr[0] == '\0')
+    if ( effect_index == 0 
+      || name_string_ptr == NULL 
+      || name_string_ptr[0] == '\0' )
+    {
       return false;
+    }
 
     int length = strlen(name_string_ptr);
 
     if (length > eEffectMaxNameLength)
-      length = eEffectMaxNameLength;
+      return false;
 
     mBuffer[1] = ProtoID_EffectInfo;
     mBuffer[2] = mRcvFrmId;
     mBuffer[3] = effect_index;
     mBuffer[4] = bitmap;
     mBuffer[5] = length;
-    
+
     memcpy(&mBuffer[6], name_string_ptr, length);
 
     length += 6;
@@ -489,7 +603,7 @@ public:
 
   bool FillBufferWithNotification(unsigned char active_effect_index)
   {
-    if (active_effect_index == 0 )
+    if (active_effect_index == 0)
       return false;
 
     mBuffer[0] = sizeof(CmuExtPacketDevNotif_t) + 1;
@@ -503,10 +617,10 @@ public:
 
   // --- Frame Decoding --- //
 
-private: // Command Queue //
+private:
 
   enum { QCmdBufferSize = 2 };
-  enum { QCmdBufferMask = QCmdBufferSize-1 };
+  enum { QCmdBufferMask = QCmdBufferSize - 1 };
   unsigned short QCmdBuffer[QCmdBufferSize];
   unsigned char  QCmdRead;
   unsigned char  QCmdWrite;
@@ -534,12 +648,12 @@ private: // Command Queue //
 
 public:
 
-  inline 
+  inline
   void CommandQueueReset()
   {
     QCmdRead = QCmdWrite = QCmdElements = 0;
   }
-  
+
   inline
   unsigned short CommandQueueRead()
   {
@@ -552,11 +666,19 @@ public:
       QCmdRead &= QCmdBufferMask;
       --QCmdElements;
     }
-    
+
     return val;
   }
 
-public: 
+public:
+
+  void InitDecoder(unsigned short fs_dsp_in_hz, unsigned short fs_txt_in_hz)
+  {
+    mQ8p8FsDspInHz = fs_dsp_in_hz;
+    mQ8p8FsTxtInHz = fs_txt_in_hz;
+    
+    calculateIntensityQueueParamsI2();
+  }
 
   void FrameDecode(unsigned char rcv_byte)
   {
@@ -588,8 +710,8 @@ public:
       {
         if (mBuffer[0] != 0 && mBuffer[1] != 0)
         {
-          proto_id     = mBuffer[0];
-          sop_set      = 1;
+          proto_id = mBuffer[0];
+          sop_set = 1;
           mRcvSopIndex = 0;
         }
       }
@@ -601,17 +723,11 @@ public:
         case ProtoID_Unknown:
         default:
           goto FrameResetAndFnExit;
-        case ProtoID_GeneralInfo:
-          mRcvEopIndex = sizeof(CmuExtPacketGeneralInfo_t) + mRcvSopIndex;
+        case ProtoID_GeneralInfoI2:
+          mRcvEopIndex = sizeof(CmuExtPacketGeneralInfoI2_t) + mRcvSopIndex;
           break;
-        case ProtoID_BeatChannel:
-          mRcvEopIndex = sizeof(CmuExtPacketBeatInfo_t) + mRcvSopIndex;
-          break;
-        case ProtoID_FiveFreqBands:
-          mRcvEopIndex = sizeof(CmuExtPacket5FreqBands_t) + mRcvSopIndex;
-          break;
-        case ProtoID_DeviceCapability:
-          mRcvEopIndex = sizeof(CmuExtPacketReqDevCap_t) + mRcvSopIndex;
+        case ProtoID_RhythmChannel:
+          mRcvEopIndex = sizeof(CmuExtPacketRhythmInfo_t) + mRcvSopIndex;
           break;
         case ProtoID_EffectInfo:
           mRcvEopIndex = sizeof(CmuExtPacketReqEffectInfo_t) + mRcvSopIndex;
@@ -619,48 +735,48 @@ public:
         case ProtoID_GetDevStatus:
           mRcvEopIndex = sizeof(CmuExtPacketGetDevStatus_t) + mRcvSopIndex;
           break;
+        case ProtoID_DeviceCapabilityI2:
+          mRcvEopIndex = sizeof(CmuExtPacketReqDevCapI2_t) + mRcvSopIndex;
+          break;
         }
       }
     }
-    
-    if ( mRcvEopIndex!=0 && mRcvCursor >= mRcvEopIndex)
+
+    if (mRcvEopIndex != 0 && mRcvCursor >= mRcvEopIndex)
     {
       unsigned char proto_id = mBuffer[mRcvSopIndex];
-      
-      if (  mRcvFrmState == 1 
-         || proto_id == ProtoID_DeviceCapability
-         || proto_id == ProtoID_EffectInfo
-         || proto_id == ProtoID_GetDevStatus )
+
+      if ( mRcvFrmState == 1
+        || proto_id == ProtoID_DeviceCapabilityI2
+        || proto_id == ProtoID_EffectInfo
+        || proto_id == ProtoID_GetDevStatus)
       {
         switch (proto_id)
         {
-        case ProtoID_GeneralInfo:
-          updateGeneralInfo((PCMUEXTPKTGENERAL)&mBuffer[mRcvSopIndex]);
+
+        case ProtoID_GeneralInfoI2:
+          updateGeneralInfoI2((PCMUEXTPKTGENERALI2)&mBuffer[mRcvSopIndex]);
           break;
 
-        case ProtoID_BeatChannel:
-          updateBeatChannel((PCMUEXTPKTBEATINFO)&mBuffer[mRcvSopIndex]);
+        case ProtoID_RhythmChannel:
+          updateRhythmChannel((PCMUEXTPKTRHYTHMINFO)&mBuffer[mRcvSopIndex]);
           break;
-
-        case ProtoID_FiveFreqBands:
-          updateFreqBands((PCMUEXTPKT5FREQBANDS)&mBuffer[mRcvSopIndex]);
-          break;
-
-        case ProtoID_DeviceCapability:
-          CommandQueueWrite(ProtoID_DeviceCapability);
-          break;
-
+          
         case ProtoID_EffectInfo:
-          {
-            PCMUEXTPKTREQEFFECTINFO pkt = (PCMUEXTPKTREQEFFECTINFO)&mBuffer[mRcvSopIndex];
-            CommandQueueWrite(ProtoID_EffectInfo, pkt->mIndex);
-          }
+        {
+          PCMUEXTPKTREQEFFECTINFO pkt = (PCMUEXTPKTREQEFFECTINFO)&mBuffer[mRcvSopIndex];
+          CommandQueueWrite(ProtoID_EffectInfo, pkt->mIndex);
+        }
           break;
 
         case ProtoID_GetDevStatus:
           CommandQueueWrite(ProtoID_GetDevStatus);
           break;
 
+        case ProtoID_DeviceCapabilityI2:
+          updateSystemParamsI2((PCMUEXTPKTREQDEVCAPI2)&mBuffer[mRcvSopIndex]);
+          CommandQueueWrite(ProtoID_DeviceCapabilityI2);
+          break;          
         }
       }
 
@@ -676,98 +792,258 @@ public:
 private: // Data Packets Decoding //
 
   enum { eInputSignalPresenceBit = 0x01
-       , eBeatTrackingBit        = 0x02 };
+       , eVoiceDetectedBit       = 0x02
+       , eRhythmTrackingBit      = 0x04 };
 
-  unsigned char  mBitmap;
+  enum { NumofIntensityC1Entres  = eGeneralInfoI2IntensityEntries };
 
-  inline 
-  void updateGeneralInfo(PCMUEXTPKTGENERAL pkt)
+  unsigned char         mBitmap;
+  unsigned char         mEmotion;
+
+  unsigned short        mQ8p8FsDspInHz;
+  unsigned short        mQ8p8FsTxtInHz;
+
+  unsigned short        mQ8p8BeatPeriodInSamples;
+  unsigned char         mRhythmCursorInSamples;
+  unsigned char         mRhythmOnTimeInSamples;
+  unsigned char         mRhythmEndInSamples;
+
+  unsigned char         mDspTickInMs;
+
+  unsigned char         mIntensityIdxMax;
+  mutable unsigned char mIntensityIdxCursor;
+  unsigned char         mIntensityC1[NumofIntensityC1Entres];
+
+  unsigned char         mRhythmBpm;
+  Notification          mNotifier;
+
+private:
+
+  inline
+  void calculateIntensityQueueParamsI2()
   {
-    mQ8p8FsInHz        = pkt->mFsInHz[0];
-    mBitmap           &=~eInputSignalPresenceBit;
-    mBitmap           |=(mQ8p8FsInHz & eGeneralInfoInputSignalPresenceBit)?eInputSignalPresenceBit:0;
-    mQ8p8FsInHz       &=~eGeneralInfoInputSignalPresenceBit;
-    mQ8p8FsInHz      <<= 8;
-    mQ8p8FsInHz       |= pkt->mFsInHz[1];
-    mTotalLogIntensity = pkt->mTotalLogIntensity;
+    mIntensityIdxMax = 0;
+    mDspTickInMs     = 0;
 
-    // reset beat info //
-    mBitmap                  &=~eBeatTrackingBit;
+    if (mQ8p8FsTxtInHz > 256 && mQ8p8FsDspInHz > 256)
+    {
+      // Transmition Tick in milliseconds
+      uint32_t n = 1000;
+      n <<= 8;        
+      n  += (mQ8p8FsTxtInHz >> 1);
+      n  /= mQ8p8FsTxtInHz;
+      
+      // Update Tick in milliseconds
+      uint32_t m = 1000;
+      m <<= 8;
+      m  += (mQ8p8FsDspInHz >> 1);
+      m  /=  mQ8p8FsDspInHz;
+      
+      mDspTickInMs  =(unsigned char)m;
+      
+      // Intensity Queue Size
+      n /= m;
+      if (n > NumofIntensityC1Entres)
+      {
+        mIntensityIdxMax = NumofIntensityC1Entres;
+      }
+      else
+      {
+        mIntensityIdxMax = (unsigned char)n;
+      }
+    }
+  }
+
+  inline
+  void updateSystemParamsI2(PCMUEXTPKTREQDEVCAPI2 pkt)
+  {
+    mQ8p8FsDspInHz   = pkt->mFsDspInHz[0];
+    mQ8p8FsDspInHz <<= 8;
+    mQ8p8FsDspInHz  |= pkt->mFsDspInHz[1];
+    
+    mQ8p8FsTxtInHz   = pkt->mFsTxtInHz[0];
+    mQ8p8FsTxtInHz <<= 8;
+    mQ8p8FsTxtInHz  |= pkt->mFsTxtInHz[1];
+    
+    calculateIntensityQueueParamsI2();
+  }
+
+  inline
+  void updateGeneralInfoI2(PCMUEXTPKTGENERALI2 pkt)
+  {
+    mBitmap &=~(eInputSignalPresenceBit | eVoiceDetectedBit | eRhythmTrackingBit);
+    
+    mBitmap |= (pkt->mBitmap & eGeneralInfoI2InputSignalPresenceBit) ? eInputSignalPresenceBit : 0;
+    mBitmap |= (pkt->mBitmap & eGeneralInfoI2VoiceDetectedBit)       ? eVoiceDetectedBit       : 0;
+
+    mEmotion            = pkt->mBitmap & eGeneralInfoI2EmotionMask;
+    mIntensityIdxCursor = 0;
+
+    memcpy(mIntensityC1, pkt->mIntensityC1, mIntensityIdxMax);
+
+    mNotifier.onGeneralInfo();
+
+    if(mQ8p8BeatPeriodInSamples==0 && mRhythmBpm!=0)
+    {
+      mRhythmBpm = 0;
+      mNotifier.onRhythmInfo();
+    }
+    
     mQ8p8BeatPeriodInSamples = 0;
-    mBeatCursorInSamples     = 0;
-    mBeatEndInSamples        = 0;
+    mRhythmCursorInSamples   = 0;
+    mRhythmOnTimeInSamples   = 0;
+    mRhythmEndInSamples      = 0;
   }
 
   inline
-  void updateBeatChannel(PCMUEXTPKTBEATINFO pkt)
+  void CalculateBpm()
   {
-    mQ8p8BeatPeriodInSamples   = pkt->mBeatPeriodInSamples[0];
-    mBitmap                   |=(mQ8p8BeatPeriodInSamples & eBeatInfoBeatTrackingBit)?eBeatTrackingBit:0;
-    mQ8p8BeatPeriodInSamples  &=~eBeatInfoBeatTrackingBit;
+    if (mQ8p8FsDspInHz == 0)
+    {
+      mRhythmBpm = 0;
+      return;
+    }
+     
+    uint32_t a = 1000;
+    uint32_t b = 60000;
+                
+    a <<= 8;
+    a  +=(mQ8p8FsDspInHz>>1);
+    a  /= mQ8p8FsDspInHz;
+    a  *= mQ8p8BeatPeriodInSamples;
+      
+    if(a==0)
+    {
+      mRhythmBpm = 0;
+      return;
+    }
+
+    b <<= 8;
+    b  += (a>>1);
+    b  /= a;
+    
+    mRhythmBpm = (unsigned char)b;
+  }
+
+  inline
+  void updateRhythmChannel(PCMUEXTPKTRHYTHMINFO pkt)
+  {
+    mBitmap                    |= (pkt->mBitmap & eRhythmInfoTrackingBit) ? eRhythmTrackingBit : 0;
+
+    mQ8p8BeatPeriodInSamples   = pkt->mBeatPeriodInSamples[eUQ88IntegerPartIndex];
     mQ8p8BeatPeriodInSamples <<= 8;
-    mQ8p8BeatPeriodInSamples  |= pkt->mBeatPeriodInSamples[1];
-    mBeatCursorInSamples       = pkt->mBeatStateInSamples[0];
-    mBeatEndInSamples          = pkt->mBeatStateInSamples[1];
-  }
+    mQ8p8BeatPeriodInSamples  |= pkt->mBeatPeriodInSamples[eUQ88FractionalPartIndex];
 
-  inline
-  void updateFreqBands(PCMUEXTPKT5FREQBANDS pkt)
-  {
-    memcpy(mFreqBandIntensity,pkt->mFreqBandLogIntensity,NumofFreqBands*sizeof(unsigned char));
+    mRhythmCursorInSamples     = pkt->mBeatStatusInSamples[eRhythmInfoIndexCursor];
+    mRhythmEndInSamples        = pkt->mBeatStatusInSamples[eRhythmInfoIndexEnd];
+    mRhythmOnTimeInSamples     = pkt->mBeatStatusInSamples[eRhythmInfoIndexOnTime];
+
+    CalculateBpm();
+
+    mNotifier.onRhythmInfo();
   }
 
   inline
   void DecodedDataReset()
   {
     mBitmap                  = 0;
-    mQ8p8FsInHz              = 0;
+    mEmotion                 = eGeneralInfoI2BasicEmotionNeutral;
+    mQ8p8FsDspInHz           = 0;
+    mQ8p8FsTxtInHz           = 0;
     mQ8p8BeatPeriodInSamples = 0;
-    mBeatCursorInSamples     = 0;
-    mBeatEndInSamples        = 0;
-    memset(mFreqBandIntensity,0,NumofFreqBands*sizeof(unsigned char));    
+    mRhythmCursorInSamples   = 0;
+    mRhythmOnTimeInSamples   = 0;
+    mRhythmEndInSamples      = 0;
+    mDspTickInMs             = 0;
+    mIntensityIdxMax         = 0;
+    mIntensityIdxCursor      = 0;
+
+    mRhythmBpm               = 0;
+    
+    memset(mIntensityC1, 0, sizeof(mIntensityC1));
   }
 
 public: // Received Streaming Data //
 
-  inline 
+  inline
+  bool IsReady() 
+  {
+    return mQ8p8FsDspInHz!=0 && mQ8p8FsTxtInHz!=0;
+  }
+  
+  inline
   unsigned char GetBpm() const
   {
-    unsigned long bpm = 0;
-
-    if (mQ8p8FsInHz != 0)
-    {
-      bpm  = mQ8p8BeatPeriodInSamples;
-      bpm *= 100;
-      bpm /= mQ8p8FsInHz;
-      bpm  = 6000 / bpm;
-      bpm &= 0xff;
-    }
-
-    return (unsigned char)bpm;
+    return mRhythmBpm;
   }
 
   inline
-  bool IsInputSignalPresent() const 
+  unsigned char GetRhythmCursorInSamples() const
   {
-    return mBitmap&eInputSignalPresenceBit?true:false;
-  }
-  
-  inline 
-  bool IsBeatTracked() const 
-  {
-    return mBitmap&eBeatTrackingBit?true:false;
+    return mRhythmCursorInSamples;
   }
 
-  unsigned char  mTotalLogIntensity;
-  unsigned short mQ8p8FsInHz;
+  inline
+  unsigned char GetRhythmEndInSamples() const
+  {
+    return mRhythmEndInSamples;
+  }
 
-  unsigned short mQ8p8BeatPeriodInSamples;
-  unsigned char  mBeatCursorInSamples;
-  unsigned char  mBeatEndInSamples;
- 
-  enum { NumofFreqBands = e5FreqBandsLength };
+  inline
+  unsigned char GetRhythmOnTimeInSamples() const
+  {
+    return mRhythmOnTimeInSamples;
+  }
 
-  unsigned char  mFreqBandIntensity[NumofFreqBands];
+  inline
+  bool IsInputSignalPresent() const
+  {
+    return mBitmap&eInputSignalPresenceBit ? true : false;
+  }
+
+  inline
+  bool IsVoiceDetected() const
+  {
+    return mBitmap&eVoiceDetectedBit ? true : false;
+  }
+
+  inline
+  bool IsRhythmTracked() const
+  {
+    return mBitmap&eRhythmTrackingBit ? true : false;
+  }
+
+  inline
+  bool IsBpmValid()
+  {
+    return mRhythmBpm!=0 && (mBitmap&(eInputSignalPresenceBit|eRhythmTrackingBit))==(eInputSignalPresenceBit|eRhythmTrackingBit);
+  }
+
+  inline
+  unsigned char BasicEmotion() const
+  {
+    return mEmotion;
+  }
+
+  inline
+  unsigned char PopIntensityC1() const
+  {
+    unsigned char val = mIntensityC1[mIntensityIdxCursor];
+
+    if (++mIntensityIdxCursor >= mIntensityIdxMax)
+    {
+      mIntensityIdxCursor = mIntensityIdxMax - 1;
+    }
+    
+    return val;
+  }
+
+  inline
+  unsigned char TickInMs() const
+  {
+    return mDspTickInMs;
+  }
+
 };
 
 #endif

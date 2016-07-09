@@ -43,6 +43,11 @@ public:
   virtual ~EffectTwinklingHolidayLights() {}
   EffectTwinklingHolidayLights() {}
   
+  const char* Name() const 
+  {
+    return "TWINLINGHLDY";
+  }
+
   void Init()
   {
     NEOPIXEL_STRIP_EFFECT_SET_LEDS_POSITION(this,StartLedIndex, NumofLeds);
